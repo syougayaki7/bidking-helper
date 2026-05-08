@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bid King 石油佬估值器 v2.0</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Bid King Helper v2.0</p>
+          <h1>石油佬估值器 v2.0</h1>
+          <p class="subhead">空白代表未知；填了件数就固定，没填就由总件数和其他线索反推。</p>
+        </div>
+        <div class="hero-metric">
+          <span>估算总值</span>
+          <strong id="totalValue">0</strong>
+        </div>
+      </section>
+
+      <section class="panel grid-panel main-panel">
+        <div class="section-head">
+          <h2>本局线索</h2>
+          <button id="resetButton" type="button" title="重置输入">重置</button>
+        </div>
+
+        <div class="top-grid">
+          <label>
+            <span>总件数</span>
+            <input id="totalItems" type="number" min="0" step="1" value="27">
+          </label>
+          <label>
+            <span>总格数</span>
+            <input id="totalSlots" type="number" min="0" step="1" value="" placeholder="未知">
+          </label>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>颜色</th>
+                <th>总格数</th>
+                <th>均格数</th>
+                <th>件数</th>
+                <th>可能件数</th>
+                <th>可能格数</th>
+                <th>价值范围</th>
+              </tr>
+            </thead>
+            <tbody id="colorRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel red-summary">
+        <div class="section-head">
+          <div>
+            <h2>红色件数</h2>
+            <p id="redNote" class="summary-note">等待线索。</p>
+          </div>
+          <span id="confidenceBadge">待录入</span>
+        </div>
+        <strong id="redCounts" class="red-main">无</strong>
+        <div id="redFormulas" class="solutions"></div>
+        <p id="warning" class="warning"></p>
+      </section>
+
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
