@@ -471,28 +471,185 @@ td:first-child {
 
 @media (max-width: 760px) {
   .shell {
-    width: min(100% - 20px, 1180px);
-    padding-top: 10px;
-  }
-
-  .hero,
-  .top-grid {
-    grid-template-columns: 1fr;
+    width: min(100% - 18px, 1180px);
+    padding: 10px 0 24px;
   }
 
   .hero {
     display: grid;
     align-items: start;
-    padding: 22px;
+    gap: 16px;
+    min-height: 0;
+    padding: 18px;
+  }
+
+  h1 {
+    font-size: 30px;
+  }
+
+  .subhead {
+    font-size: 14px;
   }
 
   .hero-metric {
     min-width: 0;
+    padding: 14px;
+  }
+
+  .hero-metric strong {
+    font-size: 26px;
+  }
+
+  .section-head {
+    align-items: start;
+    margin-bottom: 14px;
+  }
+
+  .top-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .grid-panel,
   .red-summary {
-    padding: 16px;
+    padding: 14px;
+  }
+
+  .table-wrap {
+    overflow: visible;
+  }
+
+  table,
+  tbody,
+  tr,
+  td {
+    display: block;
+    width: 100%;
+  }
+
+  table {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  tbody tr:not(.detail-row) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fffefe;
+  }
+
+  tbody tr:not(.detail-row) td {
+    min-width: 0;
+    padding: 0;
+    border-top: 0;
+  }
+
+  tbody tr:not(.detail-row) td:first-child {
+    grid-column: 1 / -1;
+    padding-bottom: 2px;
+  }
+
+  tbody tr:not(.detail-row) td:nth-child(n + 2)::before {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  tbody tr:not(.detail-row) td:nth-child(2)::before {
+    content: "总格数";
+  }
+
+  tbody tr:not(.detail-row) td:nth-child(3)::before {
+    content: "均格数";
+  }
+
+  tbody tr:not(.detail-row) td:nth-child(4)::before {
+    content: "件数";
+  }
+
+  tbody tr:not(.detail-row) td:nth-child(5)::before {
+    content: "可能件数";
+  }
+
+  tbody tr:not(.detail-row) td:nth-child(6)::before {
+    content: "可能格数";
+  }
+
+  tbody tr:not(.detail-row) td:nth-child(7)::before {
+    content: "价值范围";
+  }
+
+  tbody tr:not(.detail-row) td:nth-child(5),
+  tbody tr:not(.detail-row) td:nth-child(6),
+  tbody tr:not(.detail-row) td:nth-child(7) {
+    padding: 9px 10px;
+    border-radius: 8px;
+    background: var(--brand-soft);
+  }
+
+  .detail-row {
+    margin-top: -12px;
+    padding: 0 12px 12px;
+    border: 1px solid var(--line);
+    border-top: 0;
+    border-radius: 0 0 8px 8px;
+    background: #fffefe;
+  }
+
+  .detail-row td {
+    padding: 0;
+  }
+
+  .detail-row td:first-child {
+    display: none;
+  }
+
+  .compact-detail {
+    display: grid;
+    grid-template-columns: auto minmax(76px, 1fr) auto;
+    gap: 8px;
+  }
+
+  .compact-detail input[data-field="minCount"],
+  .compact-detail input[data-field="knownItemSlots"] {
+    width: 100%;
+  }
+
+  .compact-detail input[data-field="knownItemSlots"] {
+    grid-column: 1 / -1;
+  }
+
+  input {
+    height: 40px;
+  }
+
+  #totalItems {
+    height: 46px;
+    font-size: 24px;
+  }
+
+  .color-name {
+    font-size: 17px;
+  }
+
+  .value-cell {
+    font-size: 18px;
   }
 
   .bar-row {
@@ -506,6 +663,15 @@ td:first-child {
 
   .solution-top {
     display: grid;
+    gap: 8px;
+  }
+
+  .solution-top span {
+    font-size: 23px;
+  }
+
+  .red-main {
+    font-size: 34px;
   }
 
   .inline-fields {
