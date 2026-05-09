@@ -51,11 +51,11 @@ function parseNumberList(value) {
 }
 
 function round2(value) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return Math.round(value * 100 + 1e-9) / 100;
 }
 
 function floor2(value) {
-  return Math.floor((value + Number.EPSILON) * 100) / 100;
+  return Math.floor(value * 100 + 1e-9) / 100;
 }
 
 function matchesShownAverage(slots, count, shownAverage) {
