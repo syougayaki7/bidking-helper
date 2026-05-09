@@ -622,11 +622,13 @@ td:first-child {
 
   .hero-metric .value-summary {
     flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .hero-metric .value-pill,
   .solution-top .value-pill {
-    font-size: 17px;
+    font-size: 16px;
+    padding: 5px 8px;
   }
 
   .section-head {
@@ -712,6 +714,7 @@ td:first-child {
     color: var(--muted);
     font-size: 12px;
     font-weight: 650;
+    white-space: nowrap;
   }
 
   tbody tr:not(.detail-row) td:nth-child(2)::before {
