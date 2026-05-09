@@ -112,7 +112,7 @@ function formatSet(values, limit = 8) {
   return `${sorted.slice(0, limit).join(" / ")} ...`;
 }
 
-function formatLimitedSet(values, limit = 4) {
+function formatLimitedSet(values, limit = 3) {
   const sorted = uniqueSorted(values);
   if (sorted.length === 0) return "无";
   const contiguous = isContiguous(sorted);
@@ -547,6 +547,7 @@ function renderQuickState(state) {
   state.colors.forEach((color) => {
     const range = ranges[color.key];
     const slotValues = possibleDisplaySlots(color, state, [range.min, range.max]);
+    setRowResolved(color.key, range.min === range.max);
     document.querySelector(`[data-count-for="${color.key}"]`).textContent = formatRange([range.min, range.max]);
     document.querySelector(`[data-slots-for="${color.key}"]`).textContent = slotValues.length ? formatRange(slotValues) : "未知";
     document.querySelector(`[data-total-value-for="${color.key}"]`).innerHTML = summarizeColorEstimateRange([{
@@ -575,7 +576,7 @@ function renderRows() {
       <td class="value-cell" data-slots-for="${color.key}">无</td>
       <td class="value-cell" data-total-value-for="${color.key}">未知</td>
     </tr>
-    <tr class="detail-row">
+    <tr class="detail-row" data-detail-for="${color.key}">
       <td></td>
       <td colspan="7">
         <div class="inline-fields compact-detail">
@@ -698,6 +699,7 @@ function render() {
   state.colors.forEach((color) => {
     const colorEstimates = result.solutions.map((solution) => solution.byColor[color.key]);
     const possibleCounts = summarizeByColor(result.solutions, color.key, "count");
+    setRowResolved(color.key, possibleCounts.length === 1);
     document.querySelector(`[data-count-for="${color.key}"]`).textContent = formatLimitedSet(summarizeByColor(result.solutions, color.key, "count"));
     const slotValues = possibleDisplaySlots(color, state, possibleCounts).filter((value) => value !== null);
     document.querySelector(`[data-slots-for="${color.key}"]`).textContent = slotValues.length ? formatRange(slotValues) : "未知";
@@ -712,6 +714,14 @@ function render() {
   if (result.truncated) warnings.push(`方案较多，当前只计算前 ${MAX_SOLUTIONS} 个；补充颜色件数、格数或均格数可以收窄。`);
   if (state.totalItems > 0 && result.impossibleColor < 0 && result.solutions.length === 0) warnings.push("已知件数之和或总格数约束不匹配，请复核输入。");
   els.warning.textContent = warnings.join(" ");
+}
+
+function setRowResolved(colorKey, resolved) {
+  const input = document.querySelector(`[data-field="count"][data-key="${colorKey}"]`);
+  const row = input?.closest("tr");
+  const detailRow = document.querySelector(`[data-detail-for="${colorKey}"]`);
+  row?.classList.toggle("resolved-row", resolved);
+  detailRow?.classList.toggle("resolved-row", resolved);
 }
 
 function reset() {

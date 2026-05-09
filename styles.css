@@ -45,7 +45,7 @@ input {
 .hero {
   min-height: 142px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(390px, 0.48fr);
+  grid-template-columns: minmax(0, 1fr) minmax(500px, 0.62fr);
   align-items: end;
   justify-content: space-between;
   gap: 24px;
@@ -196,6 +196,7 @@ h2 {
 .sample-line {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   margin-bottom: 12px;
   color: var(--muted);
@@ -204,8 +205,12 @@ h2 {
 }
 
 .sample-line input {
-  width: 132px;
+  width: 92px;
   height: 38px;
+}
+
+.sample-line #sampleAvgValue {
+  width: 112px;
 }
 
 label {
@@ -285,6 +290,15 @@ td {
   text-align: left;
 }
 
+tr.resolved-row td {
+  background: #f2f0f4;
+}
+
+tr.resolved-row + tr.resolved-row td,
+.detail-row.resolved-row td {
+  background: #f2f0f4;
+}
+
 th:first-child,
 td:first-child {
   width: 58px;
@@ -298,14 +312,20 @@ td:nth-child(2) {
 th:nth-child(3),
 td:nth-child(3),
 th:nth-child(4),
-td:nth-child(4),
-th:nth-child(5),
-td:nth-child(5) {
+td:nth-child(4) {
   width: 16%;
 }
 
+th:nth-child(5),
+td:nth-child(5) {
+  width: 11%;
+}
+
 th:nth-child(6),
-td:nth-child(6),
+td:nth-child(6) {
+  width: 116px;
+}
+
 th:nth-child(7),
 td:nth-child(7) {
   width: 82px;
@@ -313,7 +333,7 @@ td:nth-child(7) {
 
 th:nth-child(8),
 td:nth-child(8) {
-  width: 132px;
+  width: 176px;
 }
 
 .detail-row td {
@@ -620,11 +640,17 @@ td:first-child {
   }
 
   .sample-line {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 6px;
   }
 
   .sample-line input {
-    width: min(132px, calc(50% - 18px));
+    width: 72px;
+    padding: 0 8px;
+  }
+
+  .sample-line #sampleAvgValue {
+    width: 88px;
   }
 
   .grid-panel,
