@@ -794,7 +794,10 @@ function formulaRows(state, solutions, probabilities = null) {
         probability: group.probability,
       };
     })
-    .sort((a, b) => a.redMax - b.redMax)
+    .sort((a, b) => {
+      if (probabilities !== null) return b.probability - a.probability || a.redMax - b.redMax;
+      return a.redMax - b.redMax;
+    })
     .slice(0, 12);
 }
 
