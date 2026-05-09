@@ -56,6 +56,11 @@ function readNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function readInteger(value) {
+  const parsed = readNumber(value);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
 function readMoney(value) {
   if (isBlank(value)) return null;
   const text = String(value).trim().toLowerCase();
@@ -359,11 +364,12 @@ function optionEstimate(option, color) {
   const knownCount = color.knownItemValues?.length ?? 0;
   const unknownCount = Math.max(0, option.count - knownCount);
   const pricePerItem = effectivePricePerItem(color);
-  const expected = knownValue > 0
+  const rawExpected = knownValue > 0
     ? knownValue + unknownCount * pricePerItem
     : optionValue(option, color);
-  if (color.priceOverride !== null && knownValue === 0) return { floor: expected, cautious: expected, expected };
+  if (color.priceOverride !== null && knownValue === 0) return { floor: rawExpected, cautious: rawExpected, expected: rawExpected };
   const floor = minColorValueForSlots(color.key, option.count, option.slots);
+  const expected = Math.max(rawExpected, floor);
   if (knownValue > 0) return { floor: Math.max(floor, knownValue), cautious: color.key === "red" ? Math.max(floor, knownValue) : expected, expected };
   const cautious = color.key === "red" ? floor : expected;
   return { floor, cautious, expected };
@@ -391,8 +397,8 @@ function readState() {
       ...color,
       priceOverride: readMoney(document.querySelector(`[data-field="priceOverride"][data-key="${color.key}"]`).value),
       totalValue: readMoney(document.querySelector(`[data-field="totalValue"][data-key="${color.key}"]`).value),
-      count: readNumber(document.querySelector(`[data-field="count"][data-key="${color.key}"]`).value),
-      minCount: readNumber(document.querySelector(`[data-field="minCount"][data-key="${color.key}"]`).value),
+      count: readInteger(document.querySelector(`[data-field="count"][data-key="${color.key}"]`).value),
+      minCount: readInteger(document.querySelector(`[data-field="minCount"][data-key="${color.key}"]`).value),
       knownItemSlots: parseNumberList(document.querySelector(`[data-field="knownItemSlots"][data-key="${color.key}"]`).value),
       knownItemValues: parseNumberList(document.querySelector(`[data-field="knownItemValues"][data-key="${color.key}"]`).value),
       slots: readNumber(document.querySelector(`[data-field="slots"][data-key="${color.key}"]`).value),
@@ -560,6 +566,17 @@ function valueEstimate(value) {
 
 function colorByKey(state, key) {
   return state.colors.find((color) => color.key === key);
+}
+
+function invalidIntegerLabels(state) {
+  return state.colors.flatMap((color) => {
+    const labels = [];
+    const countInput = document.querySelector(`[data-field="count"][data-key="${color.key}"]`);
+    const minCountInput = document.querySelector(`[data-field="minCount"][data-key="${color.key}"]`);
+    if (!isBlank(countInput.value) && !Number.isInteger(readNumber(countInput.value))) labels.push(`${color.name}件数`);
+    if (!isBlank(minCountInput.value) && !Number.isInteger(readNumber(minCountInput.value))) labels.push(`${color.name}至少件数`);
+    return labels;
+  });
 }
 
 function quickCountRange(state, color) {
@@ -836,6 +853,8 @@ function render() {
 
   const warnings = [];
   if (state.totalItems <= 0) warnings.push("请先输入总件数。");
+  const invalidIntegers = invalidIntegerLabels(state);
+  if (invalidIntegers.length) warnings.push(`${invalidIntegers.join("、")} 只能填整数，小数会按未知处理。`);
   if (result.impossibleColor >= 0) warnings.push(`${state.colors[result.impossibleColor].name} 缺少可用于推算的候选，请检查件数、格数或数据库合法格数约束。`);
   if (result.truncated) warnings.push(`方案较多，当前只计算前 ${MAX_SOLUTIONS} 个；补充颜色件数、格数或均格数可以收窄。`);
   if (state.totalItems > 0 && result.impossibleColor < 0 && result.solutions.length === 0) warnings.push("已知件数之和或总格数约束不匹配，请复核输入。");
