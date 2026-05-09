@@ -16,11 +16,21 @@ const legalSlotsByColor = {
   blue: [1, 2, 3, 4, 5, 6, 8, 9, 15, 16, 20],
   greenWhite: [1, 2, 3, 4, 5, 6, 8, 9, 12],
 };
+const floorPriceBySlots = {
+  red: { 1: 52500, 2: 92880, 3: 143100, 4: 112896, 6: 120600, 8: 281600, 9: 188888, 10: 287280, 12: 305920, 15: 293400, 16: 361000 },
+  gold: { 1: 7800, 2: 18600, 3: 30159, 4: 25875, 6: 36511, 8: 48703, 9: 48300, 10: 67600, 12: 74745, 15: 97382, 16: 199900, 18: 106500 },
+  purple: { 1: 2100, 2: 3454, 3: 6554, 4: 3180, 5: 16310, 6: 9749, 8: 11752, 9: 12045, 10: 31688, 12: 20082 },
+  blue: { 1: 711, 2: 848, 3: 2322, 4: 2214, 5: 4840, 6: 3285, 8: 3173, 9: 4410, 15: 14659, 16: 9168, 20: 8880 },
+  greenWhite: { 1: 107, 2: 107, 3: 112, 4: 142, 5: 1452, 6: 386, 8: 609, 9: 902, 12: 5129 },
+};
 const slotSumCache = new Map();
+const floorValueCache = new Map();
 
 const els = {
   totalItems: document.querySelector("#totalItems"),
   totalSlots: document.querySelector("#totalSlots"),
+  sampleCount: document.querySelector("#sampleCount"),
+  sampleAvgValue: document.querySelector("#sampleAvgValue"),
   colorRows: document.querySelector("#colorRows"),
   totalValue: document.querySelector("#totalValue"),
   redCounts: document.querySelector("#redCounts"),
@@ -41,13 +51,30 @@ function readNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function readMoney(value) {
+  if (isBlank(value)) return null;
+  const text = String(value).trim().toLowerCase();
+  const matched = text.match(/^([0-9]+(?:\.[0-9]+)?)(w|万|k|千)?$/);
+  if (!matched) return readNumber(value);
+  const number = Number(matched[1]);
+  if (!Number.isFinite(number)) return null;
+  const unit = matched[2];
+  if (unit === "w" || unit === "万") return number * 10000;
+  if (unit === "k" || unit === "千") return number * 1000;
+  return number;
+}
+
 function parseNumberList(value) {
   if (isBlank(value)) return [];
   return String(value)
     .split(/[\s,，;；、]+/)
-    .map((part) => Number(part))
+    .map((part) => readMoney(part))
     .filter((number) => Number.isFinite(number) && number > 0)
     .map((number) => Math.floor(number));
+}
+
+function sum(values) {
+  return values.reduce((total, value) => total + value, 0);
 }
 
 function round2(value) {
@@ -122,6 +149,14 @@ function formatMoney(value) {
   return formatter.format(value);
 }
 
+function valuePill(label, value) {
+  return `<span class="value-pill"><small>${label}</small>${value}</span>`;
+}
+
+function formatValueSummary(parts) {
+  return `<span class="value-summary">${parts.map(([label, value]) => valuePill(label, value)).join("")}</span>`;
+}
+
 function summarizeValueRange(values) {
   const known = values.filter(Number.isFinite);
   if (known.length === 0) return "未知";
@@ -132,11 +167,42 @@ function summarizeValueRange(values) {
 
 function summarizeEstimateRange(estimates) {
   if (estimates.length === 0) return "未知";
-  const low = Math.min(...estimates.map((estimate) => estimate.min));
-  const finiteMaxes = estimates.map((estimate) => estimate.max).filter(Number.isFinite);
-  if (finiteMaxes.length !== estimates.length) return `${formatMoney(low)}+`;
-  const high = Math.max(...finiteMaxes);
+  const floor = Math.min(...estimates.map((estimate) => estimate.floor));
+  const cautiousValues = estimates.map((estimate) => estimate.cautious).filter(Number.isFinite);
+  const expectedValues = estimates.map((estimate) => estimate.expected).filter(Number.isFinite);
+  const cautiousText = cautiousValues.length === estimates.length
+    ? summarizeMoneyValues(cautiousValues)
+    : "未知";
+  const expectedText = expectedValues.length === estimates.length
+    ? summarizeMoneyValues(expectedValues)
+    : "未知";
+  return formatValueSummary([
+    ["最低", formatMoney(floor)],
+    ["稳妥", cautiousText],
+    ["期望", expectedText],
+  ]);
+}
+
+function summarizeMoneyValues(values) {
+  const low = Math.min(...values);
+  const high = Math.max(...values);
   return low === high ? formatMoney(low) : `${formatMoney(low)} - ${formatMoney(high)}`;
+}
+
+function summarizeColorEstimateRange(estimates, color) {
+  if (estimates.length === 0) return "未知";
+  const floor = Math.min(...estimates.map((estimate) => estimate.floor));
+  const expectedValues = estimates.map((estimate) => estimate.expected).filter(Number.isFinite);
+  if (expectedValues.length !== estimates.length) return `最低 ${formatMoney(floor)} / 均值未知`;
+  const expectedLow = Math.min(...expectedValues);
+  const expectedHigh = Math.max(...expectedValues);
+  const expectedText = expectedLow === expectedHigh
+    ? formatMoney(expectedLow)
+    : `${formatMoney(expectedLow)} - ${formatMoney(expectedHigh)}`;
+  return formatValueSummary([
+    ["最低", formatMoney(floor)],
+    [color.key === "red" ? "期望" : "均值", expectedText],
+  ]);
 }
 
 function defaultMinimumFor(color) {
@@ -149,8 +215,25 @@ function hasDetailedClues(state) {
       || color.minCount !== null
       || color.slots !== null
       || color.avg !== null
-      || color.knownItemSlots.length > 0;
+      || color.knownItemSlots.length > 0
+      || color.knownItemValues.length > 0;
   });
+}
+
+function sampleValue(state) {
+  if (state.sampleCount === null || state.sampleAvgValue === null) return null;
+  if (state.sampleCount <= 0 || state.sampleAvgValue <= 0) return null;
+  return state.sampleCount * state.sampleAvgValue;
+}
+
+function applySampleEstimate(estimate, state) {
+  const value = sampleValue(state);
+  if (value === null) return estimate;
+  return {
+    floor: Math.max(estimate.floor, value),
+    cautious: Number.isFinite(estimate.cautious) ? Math.max(estimate.cautious, value) : value,
+    expected: Number.isFinite(estimate.expected) ? Math.max(estimate.expected, value) : value,
+  };
 }
 
 function possibleUnknownSlotSums(colorKey, count) {
@@ -181,13 +264,66 @@ function possibleDatabaseSlotsForCount(color, count) {
   return possibleUnknownSlotSums(color.key, unknownCount).map((slots) => knownSlotTotal + slots);
 }
 
+function knownValueTotal(color) {
+  return sum(color.knownItemValues ?? []);
+}
+
+function minColorValueForSlots(colorKey, count, totalSlots) {
+  if (count === 0) return 0;
+  const floorPrices = floorPriceBySlots[colorKey];
+  if (!floorPrices) return 0;
+  if (totalSlots === null || totalSlots === undefined) return count * floorPrices[1];
+
+  const cacheKey = `${colorKey}:${count}:${totalSlots}`;
+  if (floorValueCache.has(cacheKey)) return floorValueCache.get(cacheKey);
+
+  const entries = Object.entries(floorPrices).map(([slots, price]) => [Number(slots), price]);
+  let costs = new Map([[0, 0]]);
+  for (let item = 0; item < count; item += 1) {
+    const next = new Map();
+    costs.forEach((cost, sum) => {
+      entries.forEach(([slots, price]) => {
+        const nextSum = sum + slots;
+        if (nextSum > totalSlots) return;
+        const nextCost = cost + price;
+        if (!next.has(nextSum) || nextCost < next.get(nextSum)) next.set(nextSum, nextCost);
+      });
+    });
+    costs = next;
+  }
+
+  const result = costs.get(totalSlots) ?? count * floorPrices[1];
+  floorValueCache.set(cacheKey, result);
+  return result;
+}
+
 function optionValue(option, color) {
-  if (color.pricePerItem !== null && color.pricePerItem > 0) {
-    return option.count * color.pricePerItem;
+  const pricePerItem = effectivePricePerItem(color);
+  if (pricePerItem !== null && pricePerItem > 0) {
+    return option.count * pricePerItem;
   }
   if (option.slots === null && color.pricePerSlot === 0) return 0;
   if (option.slots === null) return option.count * color.pricePerSlot;
   return option.slots * color.pricePerSlot;
+}
+
+function effectivePricePerItem(color) {
+  return color.priceOverride ?? color.pricePerItem;
+}
+
+function optionEstimate(option, color) {
+  const knownValue = knownValueTotal(color);
+  const knownCount = color.knownItemValues?.length ?? 0;
+  const unknownCount = Math.max(0, option.count - knownCount);
+  const pricePerItem = effectivePricePerItem(color);
+  const expected = knownValue > 0
+    ? knownValue + unknownCount * pricePerItem
+    : optionValue(option, color);
+  if (color.priceOverride !== null && knownValue === 0) return { floor: expected, cautious: expected, expected };
+  const floor = minColorValueForSlots(color.key, option.count, option.slots);
+  if (knownValue > 0) return { floor: Math.max(floor, knownValue), cautious: color.key === "red" ? Math.max(floor, knownValue) : expected, expected };
+  const cautious = color.key === "red" ? floor : expected;
+  return { floor, cautious, expected };
 }
 
 function readState() {
@@ -195,11 +331,15 @@ function readState() {
   return {
     totalItems: Math.max(0, Math.floor(readNumber(els.totalItems.value) ?? 0)),
     totalSlots: totalSlots === null ? null : Math.max(0, Math.floor(totalSlots)),
+    sampleCount: readNumber(els.sampleCount.value),
+    sampleAvgValue: readMoney(els.sampleAvgValue.value),
     colors: colors.map((color) => ({
       ...color,
+      priceOverride: readMoney(document.querySelector(`[data-field="priceOverride"][data-key="${color.key}"]`).value),
       count: readNumber(document.querySelector(`[data-field="count"][data-key="${color.key}"]`).value),
       minCount: readNumber(document.querySelector(`[data-field="minCount"][data-key="${color.key}"]`).value),
       knownItemSlots: parseNumberList(document.querySelector(`[data-field="knownItemSlots"][data-key="${color.key}"]`).value),
+      knownItemValues: parseNumberList(document.querySelector(`[data-field="knownItemValues"][data-key="${color.key}"]`).value),
       slots: readNumber(document.querySelector(`[data-field="slots"][data-key="${color.key}"]`).value),
       avg: readNumber(document.querySelector(`[data-field="avg"][data-key="${color.key}"]`).value),
     })),
@@ -235,9 +375,14 @@ function possibleSlotsForCount(color, count, state, options = {}) {
 }
 
 function possibleOptions(color, state) {
+  if (color.avg === 0 && color.count === null && color.slots === null) {
+    return [{ count: 0, slots: 0, avgError: 0, value: 0 }];
+  }
+
   const observedMinimum = Math.max(
     color.minCount === null ? 0 : Math.floor(color.minCount),
     color.knownItemSlots?.length ?? 0,
+    color.knownItemValues?.length ?? 0,
   );
   const defaultMinimum = defaultMinimumFor(color);
   const minimumCount = Math.max(defaultMinimum, observedMinimum);
@@ -302,7 +447,7 @@ function solve(state) {
       const byColor = {};
       chosen.forEach((option, index) => {
         const color = state.colors[index];
-        byColor[color.key] = { ...option, value: optionValue(option, color) };
+        byColor[color.key] = { ...option, ...optionEstimate(option, color) };
       });
       solutions.push({ totalCount: state.totalItems, totalSlots: usedSlots, byColor });
       return;
@@ -324,20 +469,27 @@ function summarizeByColor(solutions, key, field) {
 }
 
 function solutionValue(solution) {
-  const values = Object.values(solution.byColor).map((color) => color.value);
+  const values = Object.values(solution.byColor).map((color) => color.expected);
   return values.every(Number.isFinite) ? values.reduce((sum, value) => sum + value, 0) : Number.NaN;
 }
 
 function solutionEstimate(solution) {
-  const values = Object.values(solution.byColor).map((color) => color.value);
-  const known = values.filter(Number.isFinite);
-  const min = known.reduce((sum, value) => sum + value, 0);
-  const max = known.length === values.length ? min : Number.NaN;
-  return { min, max };
+  const values = Object.values(solution.byColor);
+  return {
+    floor: values.reduce((sum, value) => sum + value.floor, 0),
+    cautious: values.every((value) => Number.isFinite(value.cautious))
+      ? values.reduce((sum, value) => sum + value.cautious, 0)
+      : Number.NaN,
+    expected: values.every((value) => Number.isFinite(value.expected))
+      ? values.reduce((sum, value) => sum + value.expected, 0)
+      : Number.NaN,
+  };
 }
 
 function valueEstimate(value) {
-  return Number.isFinite(value) ? { min: value, max: value } : { min: 0, max: Number.NaN };
+  return Number.isFinite(value)
+    ? { floor: value, cautious: value, expected: value }
+    : { floor: 0, cautious: Number.NaN, expected: Number.NaN };
 }
 
 function colorByKey(state, key) {
@@ -354,19 +506,26 @@ function quickCountRange(state, color) {
 
 function quickTotalEstimate(state) {
   const minimums = state.colors.map((color) => ({ color, count: defaultMinimumFor(color) }));
-  const base = minimums.reduce((sum, item) => sum + item.count * item.color.pricePerItem, 0);
+  const baseFloor = minimums.reduce((sum, item) => {
+    const price = floorPriceBySlots[item.color.key]?.[1] ?? item.color.pricePerItem;
+    return sum + item.count * price;
+  }, 0);
+  const baseExpected = minimums.reduce((sum, item) => sum + item.count * effectivePricePerItem(item.color), 0);
   const remaining = Math.max(0, state.totalItems - minimums.reduce((sum, item) => sum + item.count, 0));
-  const prices = state.colors.map((color) => color.pricePerItem);
-  return {
-    min: base + remaining * Math.min(...prices),
-    max: base + remaining * Math.max(...prices),
-  };
+  const floorPrices = state.colors.map((color) => floorPriceBySlots[color.key]?.[1] ?? color.pricePerItem);
+  const expectedPrices = state.colors.map((color) => effectivePricePerItem(color));
+  return applySampleEstimate({
+    floor: baseFloor + remaining * Math.min(...floorPrices),
+    cautious: baseExpected + remaining * Math.min(...expectedPrices),
+    expected: baseExpected + remaining * Math.max(...expectedPrices),
+  }, state);
 }
 
 function renderQuickState(state) {
   const ranges = Object.fromEntries(state.colors.map((color) => [color.key, quickCountRange(state, color)]));
+  const totalValueHtml = summarizeEstimateRange([quickTotalEstimate(state)]);
 
-  els.totalValue.textContent = summarizeEstimateRange([quickTotalEstimate(state)]);
+  els.totalValue.innerHTML = totalValueHtml;
   els.redCounts.textContent = formatRange([ranges.red.min, ranges.red.max]);
   els.redNote.textContent = "输入任意颜色线索后开始精确推算。";
   els.confidenceBadge.textContent = "快速估算";
@@ -380,7 +539,7 @@ function renderQuickState(state) {
             `<span class="formula-minus">-</span><span class="formula-chip" style="--color: ${color.color}">${color.name}<small>${formatCompactRange([ranges[color.key].min, ranges[color.key].max])}</small></span>`
           )).join("")}
         </strong>
-        <span>${els.totalValue.textContent}</span>
+        <span>${totalValueHtml}</span>
       </div>
     </article>
   `;
@@ -390,10 +549,11 @@ function renderQuickState(state) {
     const slotValues = possibleDisplaySlots(color, state, [range.min, range.max]);
     document.querySelector(`[data-count-for="${color.key}"]`).textContent = formatRange([range.min, range.max]);
     document.querySelector(`[data-slots-for="${color.key}"]`).textContent = slotValues.length ? formatRange(slotValues) : "未知";
-    document.querySelector(`[data-total-value-for="${color.key}"]`).textContent = summarizeEstimateRange([{
-      min: range.min * color.pricePerItem,
-      max: range.max * color.pricePerItem,
-    }]);
+    document.querySelector(`[data-total-value-for="${color.key}"]`).innerHTML = summarizeColorEstimateRange([{
+      floor: range.min * (floorPriceBySlots[color.key]?.[1] ?? color.pricePerItem),
+      cautious: range.max * effectivePricePerItem(color),
+      expected: range.max * effectivePricePerItem(color),
+    }], color);
   });
 
   els.warning.textContent = state.totalItems <= 0 ? "请先输入总件数。" : "";
@@ -407,6 +567,7 @@ function renderRows() {
           <span class="swatch"></span>${color.name}
         </span>
       </td>
+      <td class="price-cell"><input data-field="priceOverride" data-key="${color.key}" type="text" value="" placeholder="${formatMoney(color.pricePerItem)}"></td>
       <td><input data-field="slots" data-key="${color.key}" type="number" min="0" step="1" value="${color.slots}" placeholder="未知"></td>
       <td><input data-field="avg" data-key="${color.key}" type="number" min="0" step="0.01" value="${color.avg}" placeholder="未知"></td>
       <td><input data-field="count" data-key="${color.key}" type="number" min="0" step="1" value="${color.count}" placeholder="未知"></td>
@@ -416,12 +577,13 @@ function renderRows() {
     </tr>
     <tr class="detail-row">
       <td></td>
-      <td colspan="6">
+      <td colspan="7">
         <div class="inline-fields compact-detail">
           <span>至少</span>
           <input data-field="minCount" data-key="${color.key}" type="number" min="0" step="1" placeholder="未知">
           <span>件：</span>
           <input data-field="knownItemSlots" data-key="${color.key}" type="text" placeholder="单件格数 例：5 6 2 1">
+          <input data-field="knownItemValues" data-key="${color.key}" type="text" placeholder="已知价值 例：52000 89000">
         </div>
       </td>
     </tr>
@@ -455,7 +617,7 @@ function formulaRows(state, solutions) {
       totalValues: [],
     };
     current.redCounts.push(solution.byColor.red.count);
-    current.totalValues.push(solutionEstimate(solution));
+    current.totalValues.push(applySampleEstimate(solutionEstimate(solution), state));
     groups.set(key, current);
   });
 
@@ -494,7 +656,7 @@ function formulaRows(state, solutions) {
         valueText: summarizeEstimateRange(group.totalValues),
       };
     })
-    .sort((a, b) => b.redMax - a.redMax)
+    .sort((a, b) => a.redMax - b.redMax)
     .slice(0, 12);
 }
 
@@ -524,9 +686,9 @@ function render() {
   const result = solve(state);
   const redCounts = summarizeByColor(result.solutions, "red", "count");
   const redSlots = summarizeByColor(result.solutions, "red", "slots");
-  const solutionEstimates = result.solutions.map(solutionEstimate);
+  const solutionEstimates = result.solutions.map((solution) => applySampleEstimate(solutionEstimate(solution), state));
 
-  els.totalValue.textContent = summarizeEstimateRange(solutionEstimates);
+  els.totalValue.innerHTML = summarizeEstimateRange(solutionEstimates);
   els.redCounts.textContent = formatLimitedSet(redCounts);
   els.redNote.textContent = redCounts.length ? `红色格数可能为：${formatRange(redSlots.filter((value) => value !== null))}` : "当前线索下没有可行红色件数。";
   els.confidenceBadge.textContent = result.solutions.length
@@ -534,12 +696,12 @@ function render() {
     : "无方案";
 
   state.colors.forEach((color) => {
-    const colorValues = result.solutions.map((solution) => solution.byColor[color.key].value);
+    const colorEstimates = result.solutions.map((solution) => solution.byColor[color.key]);
     const possibleCounts = summarizeByColor(result.solutions, color.key, "count");
     document.querySelector(`[data-count-for="${color.key}"]`).textContent = formatLimitedSet(summarizeByColor(result.solutions, color.key, "count"));
     const slotValues = possibleDisplaySlots(color, state, possibleCounts).filter((value) => value !== null);
     document.querySelector(`[data-slots-for="${color.key}"]`).textContent = slotValues.length ? formatRange(slotValues) : "未知";
-    document.querySelector(`[data-total-value-for="${color.key}"]`).textContent = summarizeEstimateRange(colorValues.map(valueEstimate));
+    document.querySelector(`[data-total-value-for="${color.key}"]`).innerHTML = summarizeColorEstimateRange(colorEstimates, color);
   });
 
   renderRedFormulas(state, result);

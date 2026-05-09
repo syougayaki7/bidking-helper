@@ -44,7 +44,8 @@ input {
 
 .hero {
   min-height: 142px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(390px, 0.48fr);
   align-items: end;
   justify-content: space-between;
   gap: 24px;
@@ -74,7 +75,7 @@ h1 {
   font-size: clamp(28px, 4.5vw, 46px);
   line-height: 1.04;
   letter-spacing: 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 h2 {
@@ -89,14 +90,14 @@ h2 {
 }
 
 .hero-metric {
-  min-width: 208px;
+  min-width: 0;
   padding: 16px;
   border: 1px solid rgba(184, 154, 223, 0.38);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.62);
 }
 
-.hero-metric span {
+.hero-metric > span {
   display: block;
   margin-bottom: 8px;
   color: var(--muted);
@@ -104,15 +105,31 @@ h2 {
   font-weight: 650;
 }
 
-.hero-metric span {
+.hero-metric > span {
   color: var(--muted);
 }
 
 .hero-metric strong {
   display: block;
   font-size: 30px;
-  font-weight: 750;
+  font-weight: 600;
   line-height: 1.1;
+}
+
+.hero-metric .value-summary {
+  flex-wrap: nowrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.hero-metric .value-pill {
+  min-height: 36px;
+  padding: 6px 11px;
+  font-size: 22px;
+}
+
+.hero-metric .value-pill small {
+  font-size: 13px;
 }
 
 .panel {
@@ -176,6 +193,21 @@ h2 {
   margin-bottom: 12px;
 }
 
+.sample-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.sample-line input {
+  width: 132px;
+  height: 38px;
+}
+
 label {
   display: grid;
   gap: 8px;
@@ -198,7 +230,7 @@ input {
 #totalItems {
   height: 50px;
   font-size: 26px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 input:focus {
@@ -241,8 +273,9 @@ input:focus {
 
 table {
   width: 100%;
-  min-width: 1180px;
+  min-width: 0;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 th,
@@ -254,16 +287,33 @@ td {
 
 th:first-child,
 td:first-child {
-  width: 112px;
+  width: 58px;
 }
 
+th:nth-child(2),
+td:nth-child(2) {
+  width: 66px;
+}
+
+th:nth-child(3),
+td:nth-child(3),
+th:nth-child(4),
+td:nth-child(4),
 th:nth-child(5),
-td:nth-child(5),
+td:nth-child(5) {
+  width: 16%;
+}
+
 th:nth-child(6),
 td:nth-child(6),
 th:nth-child(7),
 td:nth-child(7) {
-  min-width: 150px;
+  width: 82px;
+}
+
+th:nth-child(8),
+td:nth-child(8) {
+  width: 132px;
 }
 
 .detail-row td {
@@ -286,7 +336,8 @@ td:nth-child(7) {
   width: 92px;
 }
 
-.compact-detail input[data-field="knownItemSlots"] {
+.compact-detail input[data-field="knownItemSlots"],
+.compact-detail input[data-field="knownItemValues"] {
   width: min(360px, 100%);
 }
 
@@ -315,9 +366,43 @@ td:first-child {
 }
 
 .value-cell {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.price-cell {
   white-space: nowrap;
+}
+
+.price-cell input {
+  height: 36px;
+  padding: 0 8px;
+  font-size: 14px;
+}
+
+.value-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-width: 100%;
+}
+
+.value-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: var(--brand-soft);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.value-pill small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .red-summary {
@@ -332,7 +417,7 @@ td:first-child {
   background: var(--brand-soft);
   color: #5f4c7d;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .bars {
@@ -376,9 +461,23 @@ td:first-child {
 
 .solution-top span {
   color: var(--ink);
-  font-size: 25px;
-  font-weight: 750;
-  white-space: nowrap;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.solution-top .value-summary {
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.solution-top .value-pill {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 18px;
+}
+
+.solution-top .value-pill small {
+  font-size: 12px;
 }
 
 .formula-line {
@@ -404,12 +503,12 @@ td:first-child {
 .formula-chip small {
   color: #39404a;
   font-size: 19px;
-  font-weight: 750;
+  font-weight: 500;
 }
 
 .formula-minus {
   color: var(--muted);
-  font-weight: 750;
+  font-weight: 500;
 }
 
 .chips {
@@ -460,7 +559,7 @@ td:first-child {
 
 .bar-value {
   text-align: right;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .warning {
@@ -477,6 +576,7 @@ td:first-child {
 
   .hero {
     display: grid;
+    grid-template-columns: 1fr;
     align-items: start;
     gap: 16px;
     min-height: 0;
@@ -500,6 +600,15 @@ td:first-child {
     font-size: 26px;
   }
 
+  .hero-metric .value-summary {
+    flex-wrap: wrap;
+  }
+
+  .hero-metric .value-pill,
+  .solution-top .value-pill {
+    font-size: 17px;
+  }
+
   .section-head {
     align-items: start;
     margin-bottom: 14px;
@@ -508,6 +617,14 @@ td:first-child {
   .top-grid {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+
+  .sample-line {
+    flex-wrap: wrap;
+  }
+
+  .sample-line input {
+    width: min(132px, calc(50% - 18px));
   }
 
   .grid-panel,
@@ -572,32 +689,36 @@ td:first-child {
   }
 
   tbody tr:not(.detail-row) td:nth-child(2)::before {
-    content: "总格数";
+    content: "均价";
   }
 
   tbody tr:not(.detail-row) td:nth-child(3)::before {
-    content: "均格数";
+    content: "总格数";
   }
 
   tbody tr:not(.detail-row) td:nth-child(4)::before {
-    content: "件数";
+    content: "均格数";
   }
 
   tbody tr:not(.detail-row) td:nth-child(5)::before {
-    content: "可能件数";
+    content: "件数";
   }
 
   tbody tr:not(.detail-row) td:nth-child(6)::before {
-    content: "可能格数";
+    content: "可能件数";
   }
 
   tbody tr:not(.detail-row) td:nth-child(7)::before {
-    content: "价值范围";
+    content: "可能格数";
   }
 
-  tbody tr:not(.detail-row) td:nth-child(5),
+  tbody tr:not(.detail-row) td:nth-child(8)::before {
+    content: "价值估计";
+  }
+
   tbody tr:not(.detail-row) td:nth-child(6),
-  tbody tr:not(.detail-row) td:nth-child(7) {
+  tbody tr:not(.detail-row) td:nth-child(7),
+  tbody tr:not(.detail-row) td:nth-child(8) {
     padding: 9px 10px;
     border-radius: 8px;
     background: var(--brand-soft);
@@ -627,11 +748,13 @@ td:first-child {
   }
 
   .compact-detail input[data-field="minCount"],
-  .compact-detail input[data-field="knownItemSlots"] {
+  .compact-detail input[data-field="knownItemSlots"],
+  .compact-detail input[data-field="knownItemValues"] {
     width: 100%;
   }
 
-  .compact-detail input[data-field="knownItemSlots"] {
+  .compact-detail input[data-field="knownItemSlots"],
+  .compact-detail input[data-field="knownItemValues"] {
     grid-column: 1 / -1;
   }
 
@@ -649,7 +772,11 @@ td:first-child {
   }
 
   .value-cell {
-    font-size: 18px;
+    font-size: 16px;
+  }
+
+  .value-summary {
+    gap: 5px;
   }
 
   .bar-row {
@@ -667,7 +794,7 @@ td:first-child {
   }
 
   .solution-top span {
-    font-size: 23px;
+    font-size: 17px;
   }
 
   .red-main {
