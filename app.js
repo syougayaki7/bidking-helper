@@ -98,6 +98,14 @@ function matchesShownAverage(slots, count, shownAverage) {
   return floor2(actualAverage) === shown;
 }
 
+function matchesShownValueAverage(totalValue, count, shownAverage) {
+  if (totalValue === null || shownAverage === null) return true;
+  if (count <= 0) return totalValue === 0 && floor2(shownAverage) === 0;
+  const actualAverage = totalValue / count;
+  const shown = round2(shownAverage);
+  return floor2(actualAverage) === shown;
+}
+
 function possibleTotalSlotsFromAverage(totalItems, shownAverage) {
   if (shownAverage === null || totalItems <= 0) return null;
   const maxSlots = totalItems * Math.max(...Object.values(legalSlotsByColor).flat());
@@ -114,11 +122,17 @@ function averageError(slots, count, shownAverage) {
   return Math.abs(slots / count - shownAverage);
 }
 
+function valueAverageError(totalValue, count, shownAverage) {
+  if (totalValue === null || shownAverage === null) return 0;
+  if (count <= 0) return Number.POSITIVE_INFINITY;
+  return Math.abs(totalValue / count - shownAverage);
+}
+
 function uniqueSorted(values) {
   return [...new Set(values)].sort((a, b) => a - b);
 }
 
-function formatSet(values, limit = 8) {
+function formatSet(values, limit = Number.POSITIVE_INFINITY) {
   const sorted = uniqueSorted(values);
   if (sorted.length === 0) return "无";
   const contiguous = sorted.every((value, index) => index === 0 || value === sorted[index - 1] + 1);
@@ -206,6 +220,13 @@ function summarizeMoneyValues(values) {
 
 function weightedAverage(values, weights) {
   return values.reduce((sum, value, index) => sum + value * weights[index], 0);
+}
+
+function normalizedWeights(weights) {
+  if (!weights.length) return null;
+  const total = weights.reduce((sum, value) => sum + value, 0);
+  if (total <= 0) return null;
+  return weights.map((value) => value / total);
 }
 
 function summarizeColorEstimateRange(estimates, color) {
@@ -424,8 +445,17 @@ function possibleOptions(color, state) {
   const countCandidates = color.count === null
     ? Array.from({ length: state.totalItems - minimumCount + 1 }, (_, index) => index + minimumCount)
     : [Math.max(0, Math.floor(color.count))];
+  const valueMatchedCounts = color.totalValue !== null && color.priceOverride !== null
+    ? countCandidates.filter((count) => matchesShownValueAverage(color.totalValue, count, color.priceOverride))
+    : countCandidates;
+  const valueCountCandidates = valueMatchedCounts.length > 0 || color.totalValue === null || color.priceOverride === null
+    ? valueMatchedCounts
+    : countCandidates.filter((count) => {
+      const bestError = Math.min(...countCandidates.map((candidate) => valueAverageError(color.totalValue, candidate, color.priceOverride)));
+      return Math.abs(valueAverageError(color.totalValue, count, color.priceOverride) - bestError) < 0.000001;
+    });
 
-  const options = countCandidates.flatMap((count) => {
+  const options = valueCountCandidates.flatMap((count) => {
     return possibleSlotsForCount(color, count, state, { forSolver: true }).map((slots) => ({
       count,
       slots,
@@ -558,13 +588,6 @@ function quickTotalEstimate(state) {
   }, state);
 }
 
-function directValueRange(color, counts) {
-  if (color.totalValue !== null) return formatMoney(color.totalValue);
-  const price = effectivePricePerItem(color);
-  const values = counts.map((count) => count * price);
-  return summarizeMoneyValues(values);
-}
-
 function weightedColorExpectedPrice(stateColors) {
   const weighted = stateColors.map((color) => {
     const price = effectivePricePerItem(color);
@@ -637,7 +660,6 @@ function renderQuickState(state) {
     const slotValues = possibleDisplaySlots(color, state, [range.min, range.max]);
     setRowResolved(color.key, color.totalValue !== null || range.min === range.max);
     document.querySelector(`[data-count-for="${color.key}"]`).textContent = formatRange([range.min, range.max]);
-    document.querySelector(`[data-direct-value-for="${color.key}"]`).textContent = directValueRange(color, [range.min, range.max]);
     document.querySelector(`[data-slots-for="${color.key}"]`).textContent = slotValues.length ? formatRange(slotValues) : "未知";
     document.querySelector(`[data-total-value-for="${color.key}"]`).innerHTML = summarizeColorEstimateRange([{
       floor: range.min * (floorPriceBySlots[color.key]?.[1] ?? color.pricePerItem),
@@ -706,11 +728,16 @@ function formulaRows(state, solutions, probabilities = null) {
       branchCounts: Object.fromEntries(branchKeys.map((colorKey) => [colorKey, solution.byColor[colorKey].count])),
       redCounts: [],
       totalValues: [],
+      weights: [],
       probability: 0,
     };
     current.redCounts.push(solution.byColor.red.count);
     current.totalValues.push(applySampleEstimate(solutionEstimate(solution), state));
-    if (probabilities !== null) current.probability += probabilities[index] ?? 0;
+    if (probabilities !== null) {
+      const weight = probabilities[index] ?? 0;
+      current.weights.push(weight);
+      current.probability += weight;
+    }
     groups.set(key, current);
   });
 
@@ -746,7 +773,7 @@ function formulaRows(state, solutions, probabilities = null) {
         context,
         redText: formatSet(group.redCounts),
         redMax: Math.max(...group.redCounts),
-        valueText: summarizeEstimateRange(group.totalValues),
+        valueText: summarizeEstimateRange(group.totalValues, normalizedWeights(group.weights)),
         probability: group.probability,
       };
     })
@@ -798,7 +825,6 @@ function render() {
     const possibleCounts = summarizeByColor(result.solutions, color.key, "count");
     setRowResolved(color.key, color.totalValue !== null || possibleCounts.length === 1);
     document.querySelector(`[data-count-for="${color.key}"]`).textContent = formatLimitedSet(summarizeByColor(result.solutions, color.key, "count"));
-    document.querySelector(`[data-direct-value-for="${color.key}"]`).textContent = directValueRange(color, possibleCounts);
     const slotValues = possibleDisplaySlots(color, state, possibleCounts).filter((value) => value !== null);
     document.querySelector(`[data-slots-for="${color.key}"]`).textContent = slotValues.length ? formatRange(slotValues) : "未知";
     document.querySelector(`[data-total-value-for="${color.key}"]`).innerHTML = summarizeColorEstimateRange(colorEstimates, color);
