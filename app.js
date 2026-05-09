@@ -788,11 +788,13 @@ function renderRedFormulas(state, result, probabilities = null) {
     <article class="solution-card">
       <div class="solution-top">
           <strong class="formula-line">${row.expression}</strong>
-        <span>${row.valueText}</span>
+        <span class="solution-metrics">
+          ${showProbability ? `<span class="probability-pill">可能性 ${Math.round(row.probability * 100)}%</span>` : ""}
+          ${row.valueText}
+        </span>
       </div>
       <div class="chips">
         <span class="chip red-chip">红色 ${row.redText}件</span>
-        ${showProbability ? `<span class="chip probability-chip">可能性 ${Math.round(row.probability * 100)}%</span>` : ""}
         ${row.context}
       </div>
     </article>
@@ -814,7 +816,7 @@ function render() {
   const probabilities = solutionWeights(result.solutions, probabilityKeys, state.colors);
 
   els.totalValue.innerHTML = summarizeEstimateRange(solutionEstimates, probabilities.length ? probabilities : null);
-  els.redCounts.textContent = formatLimitedSet(redCounts);
+  els.redCounts.textContent = formatSet(redCounts);
   els.redNote.textContent = redCounts.length ? `红色格数可能为：${formatRange(redSlots.filter((value) => value !== null))}` : "当前线索下没有可行红色件数。";
   els.confidenceBadge.textContent = result.solutions.length
     ? `${result.truncated ? `${result.solutions.length}+` : formatter.format(result.solutions.length)} 个方案`

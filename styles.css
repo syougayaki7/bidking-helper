@@ -513,6 +513,14 @@ td:first-child {
   gap: 7px;
 }
 
+.solution-metrics {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  white-space: nowrap;
+}
+
 .solution-top .value-pill {
   min-height: 30px;
   padding: 5px 9px;
@@ -579,9 +587,19 @@ td:first-child {
   background: rgba(204, 63, 50, 0.1);
 }
 
-.probability-chip {
+.probability-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border: 1px solid rgba(125, 98, 167, 0.28);
+  border-radius: 999px;
+  padding: 5px 10px;
   border-color: rgba(125, 98, 167, 0.28);
   background: rgba(184, 154, 223, 0.18);
+  color: #5f4c7d;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .bar-row {
@@ -866,6 +884,12 @@ td:first-child {
   .solution-top {
     display: grid;
     gap: 8px;
+  }
+
+  .solution-metrics {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    white-space: normal;
   }
 
   .solution-top span {
