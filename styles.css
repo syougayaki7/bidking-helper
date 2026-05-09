@@ -188,28 +188,40 @@ h2 {
 
 .top-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 12px;
 }
 
 .sample-line {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, max-content);
+  align-items: center;
+  justify-content: start;
+  column-gap: 18px;
+  row-gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sample-sentence {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
-  margin-bottom: 12px;
   color: var(--muted);
   font-size: 15px;
   font-weight: 650;
 }
 
-.sample-line input {
+.sample-sentence input {
   width: 92px;
   height: 38px;
 }
 
-.sample-line #sampleAvgValue {
+.sample-sentence #sampleAvgValue,
+.sample-sentence #sampleAvgSlots,
+.sample-sentence #sampleTotalValue,
+.sample-sentence #sampleTotalSlots {
   width: 112px;
 }
 
@@ -310,30 +322,35 @@ td:nth-child(2) {
 }
 
 th:nth-child(3),
-td:nth-child(3),
-th:nth-child(4),
-td:nth-child(4) {
-  width: 16%;
+td:nth-child(3) {
+  width: 82px;
 }
 
+th:nth-child(4),
+td:nth-child(4),
 th:nth-child(5),
 td:nth-child(5) {
-  width: 11%;
+  width: 16%;
 }
 
 th:nth-child(6),
 td:nth-child(6) {
-  width: 116px;
+  width: 11%;
 }
 
 th:nth-child(7),
 td:nth-child(7) {
-  width: 82px;
+  width: 116px;
 }
 
 th:nth-child(8),
 td:nth-child(8) {
-  width: 176px;
+  width: 82px;
+}
+
+th:nth-child(9),
+td:nth-child(9) {
+  width: 188px;
 }
 
 .detail-row td {
@@ -410,12 +427,18 @@ td:first-child {
 .value-pill {
   display: inline-flex;
   align-items: baseline;
+  flex: 0 0 auto;
   gap: 4px;
   min-height: 26px;
   border-radius: 999px;
   padding: 3px 7px;
   background: var(--brand-soft);
   color: var(--ink);
+  white-space: nowrap;
+}
+
+.value-pill small,
+.value-pill span {
   white-space: nowrap;
 }
 
@@ -556,6 +579,11 @@ td:first-child {
   background: rgba(204, 63, 50, 0.1);
 }
 
+.probability-chip {
+  border-color: rgba(125, 98, 167, 0.28);
+  background: rgba(184, 154, 223, 0.18);
+}
+
 .bar-row {
   display: grid;
   grid-template-columns: 86px 1fr 110px;
@@ -590,7 +618,8 @@ td:first-child {
 
 @media (max-width: 760px) {
   .shell {
-    width: min(100% - 18px, 1180px);
+    width: calc(100% - 18px);
+    max-width: 1180px;
     padding: 10px 0 24px;
   }
 
@@ -642,16 +671,24 @@ td:first-child {
   }
 
   .sample-line {
-    flex-wrap: nowrap;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .sample-sentence {
+    flex-wrap: wrap;
     gap: 6px;
   }
 
-  .sample-line input {
-    width: 72px;
+  .sample-sentence input {
+    width: 70px;
     padding: 0 8px;
   }
 
-  .sample-line #sampleAvgValue {
+  .sample-sentence #sampleAvgValue,
+  .sample-sentence #sampleAvgSlots,
+  .sample-sentence #sampleTotalValue,
+  .sample-sentence #sampleTotalSlots {
     width: 88px;
   }
 
@@ -698,6 +735,7 @@ td:first-child {
   }
 
   tbody tr:not(.detail-row) td {
+    width: auto;
     min-width: 0;
     padding: 0;
     border-top: 0;
@@ -722,35 +760,43 @@ td:first-child {
   }
 
   tbody tr:not(.detail-row) td:nth-child(3)::before {
-    content: "总格数";
+    content: "总价";
   }
 
   tbody tr:not(.detail-row) td:nth-child(4)::before {
-    content: "均格数";
+    content: "总格数";
   }
 
   tbody tr:not(.detail-row) td:nth-child(5)::before {
-    content: "件数";
+    content: "均格数";
   }
 
   tbody tr:not(.detail-row) td:nth-child(6)::before {
-    content: "可能件数";
+    content: "件数";
   }
 
   tbody tr:not(.detail-row) td:nth-child(7)::before {
-    content: "可能格数";
+    content: "可能件数";
   }
 
   tbody tr:not(.detail-row) td:nth-child(8)::before {
+    content: "可能格数";
+  }
+
+  tbody tr:not(.detail-row) td:nth-child(9)::before {
     content: "价值估计";
   }
 
-  tbody tr:not(.detail-row) td:nth-child(6),
   tbody tr:not(.detail-row) td:nth-child(7),
-  tbody tr:not(.detail-row) td:nth-child(8) {
+  tbody tr:not(.detail-row) td:nth-child(8),
+  tbody tr:not(.detail-row) td:nth-child(9) {
     padding: 9px 10px;
     border-radius: 8px;
     background: var(--brand-soft);
+  }
+
+  tbody tr:not(.detail-row) td:nth-child(9) {
+    grid-column: 1 / -1;
   }
 
   .detail-row {

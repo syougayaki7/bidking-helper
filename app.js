@@ -29,8 +29,13 @@ const floorValueCache = new Map();
 const els = {
   totalItems: document.querySelector("#totalItems"),
   totalSlots: document.querySelector("#totalSlots"),
+  totalAvgSlots: document.querySelector("#totalAvgSlots"),
   sampleCount: document.querySelector("#sampleCount"),
   sampleAvgValue: document.querySelector("#sampleAvgValue"),
+  sampleTotalValue: document.querySelector("#sampleTotalValue"),
+  sampleSlotCount: document.querySelector("#sampleSlotCount"),
+  sampleAvgSlots: document.querySelector("#sampleAvgSlots"),
+  sampleTotalSlots: document.querySelector("#sampleTotalSlots"),
   colorRows: document.querySelector("#colorRows"),
   totalValue: document.querySelector("#totalValue"),
   redCounts: document.querySelector("#redCounts"),
@@ -91,6 +96,16 @@ function matchesShownAverage(slots, count, shownAverage) {
   const actualAverage = slots / count;
   const shown = round2(shownAverage);
   return floor2(actualAverage) === shown;
+}
+
+function possibleTotalSlotsFromAverage(totalItems, shownAverage) {
+  if (shownAverage === null || totalItems <= 0) return null;
+  const maxSlots = totalItems * Math.max(...Object.values(legalSlotsByColor).flat());
+  const slots = [];
+  for (let slot = 0; slot <= maxSlots; slot += 1) {
+    if (matchesShownAverage(slot, totalItems, shownAverage)) slots.push(slot);
+  }
+  return slots;
 }
 
 function averageError(slots, count, shownAverage) {
@@ -165,16 +180,16 @@ function summarizeValueRange(values) {
   return min === max ? formatMoney(min) : `${formatMoney(min)} - ${formatMoney(max)}`;
 }
 
-function summarizeEstimateRange(estimates) {
+function summarizeEstimateRange(estimates, weights = null) {
   if (estimates.length === 0) return "未知";
   const floor = Math.min(...estimates.map((estimate) => estimate.floor));
   const cautiousValues = estimates.map((estimate) => estimate.cautious).filter(Number.isFinite);
   const expectedValues = estimates.map((estimate) => estimate.expected).filter(Number.isFinite);
   const cautiousText = cautiousValues.length === estimates.length
-    ? summarizeMoneyValues(cautiousValues)
+    ? weights ? formatMoney(weightedAverage(cautiousValues, weights)) : summarizeMoneyValues(cautiousValues)
     : "未知";
   const expectedText = expectedValues.length === estimates.length
-    ? summarizeMoneyValues(expectedValues)
+    ? weights ? formatMoney(weightedAverage(expectedValues, weights)) : summarizeMoneyValues(expectedValues)
     : "未知";
   return formatValueSummary([
     ["最低", formatMoney(floor)],
@@ -187,6 +202,10 @@ function summarizeMoneyValues(values) {
   const low = Math.min(...values);
   const high = Math.max(...values);
   return low === high ? formatMoney(low) : `${formatMoney(low)} - ${formatMoney(high)}`;
+}
+
+function weightedAverage(values, weights) {
+  return values.reduce((sum, value, index) => sum + value * weights[index], 0);
 }
 
 function summarizeColorEstimateRange(estimates, color) {
@@ -215,12 +234,14 @@ function hasDetailedClues(state) {
       || color.minCount !== null
       || color.slots !== null
       || color.avg !== null
+      || color.totalValue !== null
       || color.knownItemSlots.length > 0
       || color.knownItemValues.length > 0;
   });
 }
 
 function sampleValue(state) {
+  if (state.sampleTotalValue !== null && state.sampleTotalValue > 0) return state.sampleTotalValue;
   if (state.sampleCount === null || state.sampleAvgValue === null) return null;
   if (state.sampleCount <= 0 || state.sampleAvgValue <= 0) return null;
   return state.sampleCount * state.sampleAvgValue;
@@ -312,6 +333,7 @@ function effectivePricePerItem(color) {
 }
 
 function optionEstimate(option, color) {
+  if (color.totalValue !== null) return { floor: color.totalValue, cautious: color.totalValue, expected: color.totalValue };
   const knownValue = knownValueTotal(color);
   const knownCount = color.knownItemValues?.length ?? 0;
   const unknownCount = Math.max(0, option.count - knownCount);
@@ -328,14 +350,26 @@ function optionEstimate(option, color) {
 
 function readState() {
   const totalSlots = readNumber(els.totalSlots.value);
+  const totalAvgSlots = readNumber(els.totalAvgSlots.value);
+  const totalItems = Math.max(0, Math.floor(readNumber(els.totalItems.value) ?? 0));
+  const totalSlotCandidates = totalSlots === null
+    ? possibleTotalSlotsFromAverage(totalItems, totalAvgSlots)
+    : null;
   return {
-    totalItems: Math.max(0, Math.floor(readNumber(els.totalItems.value) ?? 0)),
+    totalItems,
     totalSlots: totalSlots === null ? null : Math.max(0, Math.floor(totalSlots)),
+    totalSlotCandidates,
+    totalAvgSlots,
     sampleCount: readNumber(els.sampleCount.value),
     sampleAvgValue: readMoney(els.sampleAvgValue.value),
+    sampleTotalValue: readMoney(els.sampleTotalValue.value),
+    sampleSlotCount: readNumber(els.sampleSlotCount.value),
+    sampleAvgSlots: readNumber(els.sampleAvgSlots.value),
+    sampleTotalSlots: readNumber(els.sampleTotalSlots.value),
     colors: colors.map((color) => ({
       ...color,
       priceOverride: readMoney(document.querySelector(`[data-field="priceOverride"][data-key="${color.key}"]`).value),
+      totalValue: readMoney(document.querySelector(`[data-field="totalValue"][data-key="${color.key}"]`).value),
       count: readNumber(document.querySelector(`[data-field="count"][data-key="${color.key}"]`).value),
       minCount: readNumber(document.querySelector(`[data-field="minCount"][data-key="${color.key}"]`).value),
       knownItemSlots: parseNumberList(document.querySelector(`[data-field="knownItemSlots"][data-key="${color.key}"]`).value),
@@ -438,11 +472,13 @@ function solve(state) {
     }
 
     if (usedCount > state.totalItems) return;
-      if (state.totalSlots !== null && usedSlots > state.totalSlots) return;
+    if (state.totalSlots !== null && usedSlots > state.totalSlots) return;
+    if (state.totalSlotCandidates !== null && usedSlots > state.totalSlotCandidates.at(-1)) return;
 
     if (position === ordered.length) {
       if (usedCount !== state.totalItems) return;
       if (state.totalSlots !== null && usedSlots !== state.totalSlots) return;
+      if (state.totalSlotCandidates !== null && !state.totalSlotCandidates.includes(usedSlots)) return;
 
       const byColor = {};
       chosen.forEach((option, index) => {
@@ -514,11 +550,63 @@ function quickTotalEstimate(state) {
   const remaining = Math.max(0, state.totalItems - minimums.reduce((sum, item) => sum + item.count, 0));
   const floorPrices = state.colors.map((color) => floorPriceBySlots[color.key]?.[1] ?? color.pricePerItem);
   const expectedPrices = state.colors.map((color) => effectivePricePerItem(color));
+  const weightedExpectedPrice = weightedColorExpectedPrice(state.colors);
   return applySampleEstimate({
     floor: baseFloor + remaining * Math.min(...floorPrices),
     cautious: baseExpected + remaining * Math.min(...expectedPrices),
-    expected: baseExpected + remaining * Math.max(...expectedPrices),
+    expected: baseExpected + remaining * weightedExpectedPrice,
   }, state);
+}
+
+function directValueRange(color, counts) {
+  if (color.totalValue !== null) return formatMoney(color.totalValue);
+  const price = effectivePricePerItem(color);
+  const values = counts.map((count) => count * price);
+  return summarizeMoneyValues(values);
+}
+
+function weightedColorExpectedPrice(stateColors) {
+  const weighted = stateColors.map((color) => {
+    const price = effectivePricePerItem(color);
+    return { price, weight: price > 0 ? 1 / price : 0 };
+  });
+  const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
+  if (totalWeight <= 0) return 0;
+  return weighted.reduce((sum, item) => sum + item.price * item.weight, 0) / totalWeight;
+}
+
+function probabilityKeysForSolutions(solutions) {
+  if (solutions.length === 0) return [];
+  const blueFixed = uniqueSorted(solutions.map((solution) => solution.byColor.blue.count)).length === 1;
+  const greenFixed = uniqueSorted(solutions.map((solution) => solution.byColor.greenWhite.count)).length === 1;
+  return blueFixed && greenFixed
+    ? ["purple", "gold", "red"]
+    : ["greenWhite", "blue", "purple", "gold", "red"];
+}
+
+function solutionWeights(solutions, keys, stateColors) {
+  if (solutions.length === 0 || keys.length === 0) return [];
+  const prices = Object.fromEntries(stateColors.map((color) => [color.key, effectivePricePerItem(color)]));
+  const logWeights = solutions.map((solution) => {
+    const total = keys.reduce((sum, key) => sum + solution.byColor[key].count, 0);
+    const logCombinations = logFactorial(total) - keys.reduce((sum, key) => sum + logFactorial(solution.byColor[key].count), 0);
+    const logColorWeights = keys.reduce((sum, key) => {
+      const price = prices[key];
+      const weight = price > 0 ? 1 / price : 0;
+      return weight > 0 ? sum + solution.byColor[key].count * Math.log(weight) : Number.NEGATIVE_INFINITY;
+    }, 0);
+    return logCombinations + logColorWeights;
+  });
+  const maxLog = Math.max(...logWeights);
+  const weights = logWeights.map((value) => Math.exp(value - maxLog));
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  return totalWeight > 0 ? weights.map((value) => value / totalWeight) : solutions.map(() => 1 / solutions.length);
+}
+
+function logFactorial(value) {
+  let result = 0;
+  for (let index = 2; index <= value; index += 1) result += Math.log(index);
+  return result;
 }
 
 function renderQuickState(state) {
@@ -547,8 +635,9 @@ function renderQuickState(state) {
   state.colors.forEach((color) => {
     const range = ranges[color.key];
     const slotValues = possibleDisplaySlots(color, state, [range.min, range.max]);
-    setRowResolved(color.key, range.min === range.max);
+    setRowResolved(color.key, color.totalValue !== null || range.min === range.max);
     document.querySelector(`[data-count-for="${color.key}"]`).textContent = formatRange([range.min, range.max]);
+    document.querySelector(`[data-direct-value-for="${color.key}"]`).textContent = directValueRange(color, [range.min, range.max]);
     document.querySelector(`[data-slots-for="${color.key}"]`).textContent = slotValues.length ? formatRange(slotValues) : "未知";
     document.querySelector(`[data-total-value-for="${color.key}"]`).innerHTML = summarizeColorEstimateRange([{
       floor: range.min * (floorPriceBySlots[color.key]?.[1] ?? color.pricePerItem),
@@ -569,6 +658,7 @@ function renderRows() {
         </span>
       </td>
       <td class="price-cell"><input data-field="priceOverride" data-key="${color.key}" type="text" value="" placeholder="${formatMoney(color.pricePerItem)}"></td>
+      <td class="price-cell"><input data-field="totalValue" data-key="${color.key}" type="text" value="" placeholder="未知"></td>
       <td><input data-field="slots" data-key="${color.key}" type="number" min="0" step="1" value="${color.slots}" placeholder="未知"></td>
       <td><input data-field="avg" data-key="${color.key}" type="number" min="0" step="0.01" value="${color.avg}" placeholder="未知"></td>
       <td><input data-field="count" data-key="${color.key}" type="number" min="0" step="1" value="${color.count}" placeholder="未知"></td>
@@ -578,7 +668,7 @@ function renderRows() {
     </tr>
     <tr class="detail-row" data-detail-for="${color.key}">
       <td></td>
-      <td colspan="7">
+      <td colspan="8">
         <div class="inline-fields compact-detail">
           <span>至少</span>
           <input data-field="minCount" data-key="${color.key}" type="number" min="0" step="1" placeholder="未知">
@@ -591,7 +681,7 @@ function renderRows() {
   `).join("");
 }
 
-function formulaRows(state, solutions) {
+function formulaRows(state, solutions, probabilities = null) {
   if (solutions.length === 0) return [];
 
   const countSets = Object.fromEntries(
@@ -610,15 +700,17 @@ function formulaRows(state, solutions) {
   const fixedSubtract = fixedKeys.reduce((sum, colorKey) => sum + countSets[colorKey][0], 0);
   const groups = new Map();
 
-  solutions.forEach((solution) => {
+  solutions.forEach((solution, index) => {
     const key = branchKeys.map((colorKey) => `${colorKey}:${solution.byColor[colorKey].count}`).join("|");
     const current = groups.get(key) ?? {
       branchCounts: Object.fromEntries(branchKeys.map((colorKey) => [colorKey, solution.byColor[colorKey].count])),
       redCounts: [],
       totalValues: [],
+      probability: 0,
     };
     current.redCounts.push(solution.byColor.red.count);
     current.totalValues.push(applySampleEstimate(solutionEstimate(solution), state));
+    if (probabilities !== null) current.probability += probabilities[index] ?? 0;
     groups.set(key, current);
   });
 
@@ -655,14 +747,16 @@ function formulaRows(state, solutions) {
         redText: formatSet(group.redCounts),
         redMax: Math.max(...group.redCounts),
         valueText: summarizeEstimateRange(group.totalValues),
+        probability: group.probability,
       };
     })
     .sort((a, b) => a.redMax - b.redMax)
     .slice(0, 12);
 }
 
-function renderRedFormulas(state, result) {
-  const rows = formulaRows(state, result.solutions);
+function renderRedFormulas(state, result, probabilities = null) {
+  const rows = formulaRows(state, result.solutions, probabilities);
+  const showProbability = probabilities !== null && rows.length <= 6;
   els.redFormulas.innerHTML = rows.map((row) => `
     <article class="solution-card">
       <div class="solution-top">
@@ -671,6 +765,7 @@ function renderRedFormulas(state, result) {
       </div>
       <div class="chips">
         <span class="chip red-chip">红色 ${row.redText}件</span>
+        ${showProbability ? `<span class="chip probability-chip">可能性 ${Math.round(row.probability * 100)}%</span>` : ""}
         ${row.context}
       </div>
     </article>
@@ -688,8 +783,10 @@ function render() {
   const redCounts = summarizeByColor(result.solutions, "red", "count");
   const redSlots = summarizeByColor(result.solutions, "red", "slots");
   const solutionEstimates = result.solutions.map((solution) => applySampleEstimate(solutionEstimate(solution), state));
+  const probabilityKeys = probabilityKeysForSolutions(result.solutions);
+  const probabilities = solutionWeights(result.solutions, probabilityKeys, state.colors);
 
-  els.totalValue.innerHTML = summarizeEstimateRange(solutionEstimates);
+  els.totalValue.innerHTML = summarizeEstimateRange(solutionEstimates, probabilities.length ? probabilities : null);
   els.redCounts.textContent = formatLimitedSet(redCounts);
   els.redNote.textContent = redCounts.length ? `红色格数可能为：${formatRange(redSlots.filter((value) => value !== null))}` : "当前线索下没有可行红色件数。";
   els.confidenceBadge.textContent = result.solutions.length
@@ -699,14 +796,15 @@ function render() {
   state.colors.forEach((color) => {
     const colorEstimates = result.solutions.map((solution) => solution.byColor[color.key]);
     const possibleCounts = summarizeByColor(result.solutions, color.key, "count");
-    setRowResolved(color.key, possibleCounts.length === 1);
+    setRowResolved(color.key, color.totalValue !== null || possibleCounts.length === 1);
     document.querySelector(`[data-count-for="${color.key}"]`).textContent = formatLimitedSet(summarizeByColor(result.solutions, color.key, "count"));
+    document.querySelector(`[data-direct-value-for="${color.key}"]`).textContent = directValueRange(color, possibleCounts);
     const slotValues = possibleDisplaySlots(color, state, possibleCounts).filter((value) => value !== null);
     document.querySelector(`[data-slots-for="${color.key}"]`).textContent = slotValues.length ? formatRange(slotValues) : "未知";
     document.querySelector(`[data-total-value-for="${color.key}"]`).innerHTML = summarizeColorEstimateRange(colorEstimates, color);
   });
 
-  renderRedFormulas(state, result);
+  renderRedFormulas(state, result, probabilities.length ? probabilities : null);
 
   const warnings = [];
   if (state.totalItems <= 0) warnings.push("请先输入总件数。");
@@ -717,9 +815,8 @@ function render() {
 }
 
 function setRowResolved(colorKey, resolved) {
-  const input = document.querySelector(`[data-field="count"][data-key="${colorKey}"]`);
-  const row = input?.closest("tr");
   const detailRow = document.querySelector(`[data-detail-for="${colorKey}"]`);
+  const row = detailRow?.previousElementSibling;
   row?.classList.toggle("resolved-row", resolved);
   detailRow?.classList.toggle("resolved-row", resolved);
 }
@@ -728,6 +825,13 @@ function reset() {
   colors.splice(0, colors.length, ...structuredClone(defaults));
   els.totalItems.value = "27";
   els.totalSlots.value = "";
+  els.totalAvgSlots.value = "";
+  els.sampleCount.value = "";
+  els.sampleAvgValue.value = "";
+  els.sampleTotalValue.value = "";
+  els.sampleSlotCount.value = "";
+  els.sampleAvgSlots.value = "";
+  els.sampleTotalSlots.value = "";
   renderRows();
   bindInputs();
   render();

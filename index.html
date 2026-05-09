@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Bid King 石油佬估值器 v2.2</title>
+    <title>Bid King 石油佬估值器 v2.3</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
     <main class="shell">
       <section class="hero">
         <div>
-          <p class="eyebrow">Bid King Helper v2.2</p>
-          <h1>石油佬估值器 v2.2</h1>
+          <p class="eyebrow">Bid King Helper v2.3</p>
+          <h1>石油佬估值器 v2.3</h1>
           <p class="subhead">空白代表未知；填了件数就固定，没填就由总件数和其他线索反推。</p>
         </div>
         <div class="hero-metric">
@@ -35,12 +35,28 @@
             <span>总格数</span>
             <input id="totalSlots" type="number" min="0" step="1" value="" placeholder="未知">
           </label>
+          <label>
+            <span>总均格数</span>
+            <input id="totalAvgSlots" type="number" min="0" step="0.01" value="" placeholder="未知">
+          </label>
         </div>
         <div class="sample-line">
-          <span>取</span>
-          <input id="sampleCount" type="number" min="0" step="1" value="" placeholder="未知">
-          <span>件样本均价为</span>
-          <input id="sampleAvgValue" type="text" value="" placeholder="未知">
+          <div class="sample-sentence">
+            <span>取</span>
+            <input id="sampleCount" type="number" min="0" step="1" value="" placeholder="未知">
+            <span>件样本均价为</span>
+            <input id="sampleAvgValue" type="text" value="" placeholder="未知">
+            <span>总价为</span>
+            <input id="sampleTotalValue" type="text" value="" placeholder="未知">
+          </div>
+          <div class="sample-sentence">
+            <span>取</span>
+            <input id="sampleSlotCount" type="number" min="0" step="1" value="" placeholder="未知">
+            <span>件样本均格为</span>
+            <input id="sampleAvgSlots" type="number" min="0" step="0.01" value="" placeholder="未知">
+            <span>总格为</span>
+            <input id="sampleTotalSlots" type="number" min="0" step="1" value="" placeholder="未知">
+          </div>
         </div>
 
         <div class="table-wrap">
@@ -49,6 +65,7 @@
               <tr>
                 <th>颜色</th>
                 <th>均价</th>
+                <th>总价</th>
                 <th>总格数</th>
                 <th>均格数</th>
                 <th>件数</th>

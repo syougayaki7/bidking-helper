@@ -1,4 +1,4 @@
-# Bid King Helper v2.2
+# Bid King Helper v2.3
 
 一个给《BidKing：竞拍之王》石油佬角色使用的离线估值网页工具。
 
