@@ -23,6 +23,13 @@ const floorPriceBySlots = {
   blue: { 1: 711, 2: 848, 3: 2322, 4: 2214, 5: 4840, 6: 3285, 8: 3173, 9: 4410, 15: 14659, 16: 9168, 20: 8880 },
   greenWhite: { 1: 107, 2: 107, 3: 112, 4: 142, 5: 1452, 6: 386, 8: 609, 9: 902, 12: 5129 },
 };
+const averagePriceBySlots = {
+  red: { 1: 890938, 2: 1911450, 3: 545202, 4: 704326, 6: 240642, 8: 351801, 9: 442450, 10: 287280, 12: 555320, 15: 593540, 16: 549667 },
+  gold: { 1: 18591, 2: 28143, 3: 47947, 4: 37647, 6: 51607, 8: 65554, 9: 71790, 10: 78531, 12: 85107, 15: 97382, 16: 199900, 18: 106500 },
+  purple: { 1: 4149, 2: 5484, 3: 7835, 4: 10491, 5: 16310, 6: 13110, 8: 12529, 9: 17551, 10: 31688, 12: 20082 },
+  blue: { 1: 1400, 2: 2541, 3: 3686, 4: 3634, 5: 4840, 6: 4422, 8: 3173, 9: 5486, 15: 14659, 16: 9168, 20: 8880 },
+  greenWhite: { 1: 269, 2: 525, 3: 767, 4: 816, 5: 1452, 6: 1299, 8: 609, 9: 1164, 12: 5129 },
+};
 const slotSumCache = new Map();
 const floorValueCache = new Map();
 
@@ -54,6 +61,14 @@ function readNumber(value) {
   if (isBlank(value)) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readDecimalClue(value) {
+  const number = readNumber(value);
+  return {
+    value: number,
+    decimals: 2,
+  };
 }
 
 function readInteger(value) {
@@ -91,34 +106,39 @@ function round2(value) {
   return Math.round(value * 100 + 1e-9) / 100;
 }
 
-function floor2(value) {
-  return Math.floor(value * 100 + 1e-9) / 100;
+function floorShown(value, decimals = 2) {
+  const scale = 10 ** decimals;
+  return Math.floor(value * scale + 1e-9) / scale;
 }
 
-function matchesShownAverage(slots, count, shownAverage) {
+function matchesShownAverage(slots, count, shownAverage, decimals = 2) {
   if (shownAverage === null) return true;
   if (count <= 0) return false;
   const actualAverage = slots / count;
-  const shown = round2(shownAverage);
-  return floor2(actualAverage) === shown;
+  return floorShown(actualAverage, decimals) === shownAverage;
 }
 
-function matchesShownValueAverage(totalValue, count, shownAverage) {
+function matchesShownValueAverage(totalValue, count, shownAverage, decimals = 2) {
   if (totalValue === null || shownAverage === null) return true;
-  if (count <= 0) return totalValue === 0 && floor2(shownAverage) === 0;
+  if (count <= 0) return totalValue === 0 && floorShown(shownAverage, decimals) === 0;
   const actualAverage = totalValue / count;
-  const shown = round2(shownAverage);
-  return floor2(actualAverage) === shown;
+  return floorShown(actualAverage, decimals) === shownAverage;
 }
 
-function possibleTotalSlotsFromAverage(totalItems, shownAverage) {
+function possibleTotalSlotsFromAverage(totalItems, shownAverage, decimals = 2) {
   if (shownAverage === null || totalItems <= 0) return null;
   const maxSlots = totalItems * Math.max(...Object.values(legalSlotsByColor).flat());
   const slots = [];
   for (let slot = 0; slot <= maxSlots; slot += 1) {
-    if (matchesShownAverage(slot, totalItems, shownAverage)) slots.push(slot);
+    if (matchesShownAverage(slot, totalItems, shownAverage, decimals)) slots.push(slot);
   }
-  return slots;
+  if (slots.length > 0) return slots;
+  let bestError = Number.POSITIVE_INFINITY;
+  for (let slot = 0; slot <= maxSlots; slot += 1) {
+    bestError = Math.min(bestError, averageError(slot, totalItems, shownAverage));
+  }
+  return Array.from({ length: maxSlots + 1 }, (_, slot) => slot)
+    .filter((slot) => Math.abs(averageError(slot, totalItems, shownAverage) - bestError) < 0.000001);
 }
 
 function averageError(slots, count, shownAverage) {
@@ -131,6 +151,23 @@ function valueAverageError(totalValue, count, shownAverage) {
   if (totalValue === null || shownAverage === null) return 0;
   if (count <= 0) return Number.POSITIVE_INFINITY;
   return Math.abs(totalValue / count - shownAverage);
+}
+
+function valueRangeForAverage(shownAverage, decimals, count) {
+  const unit = 1 / (10 ** decimals);
+  return {
+    min: Math.ceil(shownAverage * count - 1e-9),
+    max: Math.ceil((shownAverage + unit) * count - 1e-9) - 1,
+  };
+}
+
+function countsMatchingIntegerValueAverage(color, countCandidates) {
+  if (color.priceOverride === null) return countCandidates;
+  const matched = countCandidates.filter((count) => {
+    const range = valueRangeForAverage(color.priceOverride, 2, count);
+    return range.min <= range.max;
+  });
+  return matched.length ? matched : countCandidates;
 }
 
 function uniqueSorted(values) {
@@ -260,6 +297,7 @@ function hasDetailedClues(state) {
       || color.minCount !== null
       || color.slots !== null
       || color.avg !== null
+      || color.priceOverride !== null
       || color.totalValue !== null
       || color.knownItemSlots.length > 0
       || color.knownItemValues.length > 0;
@@ -315,6 +353,12 @@ function knownValueTotal(color) {
   return sum(color.knownItemValues ?? []);
 }
 
+function knownSlotAverageTotal(color, coveredByKnownValues) {
+  const slots = (color.knownItemSlots ?? []).slice(coveredByKnownValues);
+  const averages = averagePriceBySlots[color.key] ?? {};
+  return slots.reduce((total, slot) => total + (averages[slot] ?? effectivePricePerItem(color)), 0);
+}
+
 function minColorValueForSlots(colorKey, count, totalSlots) {
   if (count === 0) return 0;
   const floorPrices = floorPriceBySlots[colorKey];
@@ -362,12 +406,11 @@ function optionEstimate(option, color) {
   if (color.totalValue !== null) return { floor: color.totalValue, cautious: color.totalValue, expected: color.totalValue };
   const knownValue = knownValueTotal(color);
   const knownCount = color.knownItemValues?.length ?? 0;
-  const unknownCount = Math.max(0, option.count - knownCount);
+  const knownSlotValue = knownSlotAverageTotal(color, knownCount);
+  const knownSlotCount = Math.max(0, (color.knownItemSlots?.length ?? 0) - knownCount);
+  const unknownCount = Math.max(0, option.count - knownCount - knownSlotCount);
   const pricePerItem = effectivePricePerItem(color);
-  const rawExpected = knownValue > 0
-    ? knownValue + unknownCount * pricePerItem
-    : optionValue(option, color);
-  if (color.priceOverride !== null && knownValue === 0) return { floor: rawExpected, cautious: rawExpected, expected: rawExpected };
+  const rawExpected = knownValue + knownSlotValue + unknownCount * pricePerItem;
   const floor = minColorValueForSlots(color.key, option.count, option.slots);
   const expected = Math.max(rawExpected, floor);
   if (knownValue > 0) return { floor: Math.max(floor, knownValue), cautious: color.key === "red" ? Math.max(floor, knownValue) : expected, expected };
@@ -377,33 +420,42 @@ function optionEstimate(option, color) {
 
 function readState() {
   const totalSlots = readNumber(els.totalSlots.value);
-  const totalAvgSlots = readNumber(els.totalAvgSlots.value);
+  const totalAvgClue = readDecimalClue(els.totalAvgSlots.value);
+  const totalAvgSlots = totalAvgClue.value;
   const totalItems = Math.max(0, Math.floor(readNumber(els.totalItems.value) ?? 0));
   const totalSlotCandidates = totalSlots === null
-    ? possibleTotalSlotsFromAverage(totalItems, totalAvgSlots)
+    ? possibleTotalSlotsFromAverage(totalItems, totalAvgSlots, totalAvgClue.decimals)
     : null;
   return {
     totalItems,
     totalSlots: totalSlots === null ? null : Math.max(0, Math.floor(totalSlots)),
     totalSlotCandidates,
     totalAvgSlots,
+    totalAvgPrecision: totalAvgClue.decimals,
     sampleCount: readNumber(els.sampleCount.value),
     sampleAvgValue: readMoney(els.sampleAvgValue.value),
     sampleTotalValue: readMoney(els.sampleTotalValue.value),
     sampleSlotCount: readNumber(els.sampleSlotCount.value),
     sampleAvgSlots: readNumber(els.sampleAvgSlots.value),
     sampleTotalSlots: readNumber(els.sampleTotalSlots.value),
-    colors: colors.map((color) => ({
-      ...color,
-      priceOverride: readMoney(document.querySelector(`[data-field="priceOverride"][data-key="${color.key}"]`).value),
-      totalValue: readMoney(document.querySelector(`[data-field="totalValue"][data-key="${color.key}"]`).value),
-      count: readInteger(document.querySelector(`[data-field="count"][data-key="${color.key}"]`).value),
-      minCount: readInteger(document.querySelector(`[data-field="minCount"][data-key="${color.key}"]`).value),
-      knownItemSlots: parseNumberList(document.querySelector(`[data-field="knownItemSlots"][data-key="${color.key}"]`).value),
-      knownItemValues: parseNumberList(document.querySelector(`[data-field="knownItemValues"][data-key="${color.key}"]`).value),
-      slots: readNumber(document.querySelector(`[data-field="slots"][data-key="${color.key}"]`).value),
-      avg: readNumber(document.querySelector(`[data-field="avg"][data-key="${color.key}"]`).value),
-    })),
+    colors: colors.map((color) => {
+      const priceInput = document.querySelector(`[data-field="priceOverride"][data-key="${color.key}"]`).value;
+      const avgInput = document.querySelector(`[data-field="avg"][data-key="${color.key}"]`).value;
+      const avgClue = readDecimalClue(avgInput);
+      return {
+        ...color,
+        priceOverride: readMoney(priceInput),
+        pricePrecision: 2,
+        totalValue: readMoney(document.querySelector(`[data-field="totalValue"][data-key="${color.key}"]`).value),
+        count: readInteger(document.querySelector(`[data-field="count"][data-key="${color.key}"]`).value),
+        minCount: readInteger(document.querySelector(`[data-field="minCount"][data-key="${color.key}"]`).value),
+        knownItemSlots: parseNumberList(document.querySelector(`[data-field="knownItemSlots"][data-key="${color.key}"]`).value),
+        knownItemValues: parseNumberList(document.querySelector(`[data-field="knownItemValues"][data-key="${color.key}"]`).value),
+        slots: readNumber(document.querySelector(`[data-field="slots"][data-key="${color.key}"]`).value),
+        avg: avgClue.value,
+        avgPrecision: avgClue.decimals,
+      };
+    }),
   };
 }
 
@@ -428,7 +480,7 @@ function possibleSlotsForCount(color, count, state, options = {}) {
   const maxSlots = state.totalSlots ?? databaseSlots.at(-1);
   const boundedSlots = databaseSlots.filter((slot) => slot <= maxSlots);
   if (boundedSlots.length === 0) return [];
-  const matchedSlots = boundedSlots.filter((slot) => matchesShownAverage(slot, count, color.avg));
+  const matchedSlots = boundedSlots.filter((slot) => matchesShownAverage(slot, count, color.avg, color.avgPrecision));
   if (matchedSlots.length > 0 || color.avg === null) return matchedSlots;
 
   const bestError = Math.min(...boundedSlots.map((slot) => averageError(slot, count, color.avg)));
@@ -451,9 +503,10 @@ function possibleOptions(color, state) {
   const countCandidates = color.count === null
     ? Array.from({ length: state.totalItems - minimumCount + 1 }, (_, index) => index + minimumCount)
     : [Math.max(0, Math.floor(color.count))];
+  const integerValueCountCandidates = countsMatchingIntegerValueAverage(color, countCandidates);
   const valueMatchedCounts = color.totalValue !== null && color.priceOverride !== null
-    ? countCandidates.filter((count) => matchesShownValueAverage(color.totalValue, count, color.priceOverride))
-    : countCandidates;
+    ? integerValueCountCandidates.filter((count) => matchesShownValueAverage(color.totalValue, count, color.priceOverride, color.pricePrecision))
+    : integerValueCountCandidates;
   const valueCountCandidates = valueMatchedCounts.length > 0 || color.totalValue === null || color.priceOverride === null
     ? valueMatchedCounts
     : countCandidates.filter((count) => {
@@ -474,7 +527,7 @@ function possibleOptions(color, state) {
 
   const displayedMatches = options.filter((option) => {
     if (option.slots === null) return false;
-    return matchesShownAverage(option.slots, option.count, color.avg);
+    return matchesShownAverage(option.slots, option.count, color.avg, color.avgPrecision);
   });
   if (displayedMatches.length > 0) return displayedMatches;
 
